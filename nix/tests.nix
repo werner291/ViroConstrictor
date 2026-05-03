@@ -181,7 +181,15 @@ let
           echo "FAIL: trueconsense failed"; cat trueconsense.log; exit 1;
         }
       [ -s consensus.fa ] || { echo "FAIL: trueconsense produced empty consensus"; exit 1; }
-      grep -q "^>" consensus.fa || { echo "FAIL: consensus.fa has no FASTA header"; exit 1; }
+      # head, not grep: gnugrep isn't in the consensus closure (coreutils
+      # doesn't include grep), and there's no real workflow rule that
+      # needs grep in this container, so the smoke test reaches for what
+      # the closure actually has.
+      [ "$(head -c 1 consensus.fa)" = ">" ] || { echo "FAIL: consensus.fa has no FASTA header"; exit 1; }
+      # Diagnostic line on success so the vm-tests' "must produce stdout"
+      # assertion is satisfied. (The other test scripts already echo
+      # something on success, e.g. "mapped reads: N"; consensus didn't.)
+      echo "consensus produced: $(wc -c < consensus.fa) bytes"
     '';
   };
 
