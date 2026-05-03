@@ -97,6 +97,14 @@
         # QEMU user-mode emulator intermittently SIGSEGVs running minimap2 on
         # an x86_64 host; we don't want that flake to gate `nix flake check`.
         vm-alignment-aarch64 = vmTestsAarch64.vmAlignmentAarch64;
+
+        # Optional VM check that runs the alignment container against real
+        # SARS-CoV-2 amplicon reads from nf-core/test-datasets, fetched via
+        # fetchurl with a pinned hash. Kept out of `checks` because the fetch
+        # needs internet on first build; cached afterwards.
+        vm-alignment-real-reads = import ./nix/vm-test-real-reads.nix {
+          inherit pkgs images containers;
+        };
       } // pkgs.lib.foldl' (acc: v: acc // {
         # Per-CPU-baseline Clean image variants. Each pulls exactly one
         # `_polars_runtime_<v>` directory, mirroring the conda Clean image's
