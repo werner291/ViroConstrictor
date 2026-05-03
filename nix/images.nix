@@ -42,6 +42,13 @@ in
       extraCommands = ''
         cp -a ${rootfs}/. ./
         chmod -R u+w .
+        # Restore the world-writable + sticky bit on /tmp. Nix's post-build
+        # store lockdown strips u+w from store paths, taking 1777 down to
+        # 0555 inside the rootfs derivation; the `chmod -R u+w .` above only
+        # adds back user-write, leaving group/other write missing. Without
+        # this, FastQC's javax.imageio temp-file write fails with
+        # AccessDeniedException when running as appuser.
+        chmod 1777 ./tmp
       '';
       includeStorePaths = false;
       config = {
@@ -116,6 +123,11 @@ in
         # contents-of, not the rootfs dir itself, so etc/ and nix/store/
         # land at the image root.
         cp -a "${rootfs}/." ./
+
+        # Same /tmp permission restore as mkDocker: nix's store lockdown
+        # collapses 1777 to 0555, leaving FastQC's javax.imageio temp file
+        # write unable to create cache files when running as appuser.
+        chmod 1777 ./tmp
 
         # /bin/sh -> bash, mirroring singularity-tools.buildImage.
         mkdir -p bin
