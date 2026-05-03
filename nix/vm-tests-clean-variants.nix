@@ -108,6 +108,12 @@ let
             machine.succeed("cp -r ${fixtureDir}/. /work/")
             machine.succeed("cp ${script} /work/run.sh")
             machine.succeed("chmod +x /work/run.sh")
+            # Same UID-10001 chown as nix/vm-tests.nix: the clean-* images
+            # run as appuser (10001) per nix/images.nix's User config;
+            # without this, fastp / multiqc / ampligone can't write outputs
+            # to the bind-mounted /work and the test fails with "Permission
+            # denied" on intermediate files like fastp.log.
+            machine.succeed("chown -R 10001:10001 /work")
 
         stage_work()
 

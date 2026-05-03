@@ -143,6 +143,12 @@ in
           machine.succeed("cp -r ${fixtureDir}/. /work/")
           machine.succeed("cp ${scriptFile} /work/run.sh")
           machine.succeed("chmod +x /work/run.sh")
+          # Same UID-10001 chown as nix/vm-tests.nix's stage_work: images
+          # run as appuser (10001) per the User config in nix/images.nix;
+          # without this, samtools/minimap2 can't write outputs to the
+          # bind-mounted /work and the test silently produces empty files
+          # (mapped reads: 0, [: : integer expected).
+          machine.succeed("chown -R 10001:10001 /work")
 
       stage_work()
 
