@@ -15,11 +15,44 @@ self: super: {
   # pattern propagates through both attributes.
   python3 = super.python3.override (old: {
     packageOverrides = pyfinal: pyprev: (old.packageOverrides or (_: _: { })) pyfinal pyprev // {
-      aminoextract = pyfinal.callPackage ./aminoextract.nix { };
+      aminoextract     = pyfinal.callPackage ./aminoextract.nix     { };
+      biovalid         = pyfinal.callPackage ./biovalid.nix         { };
+      bcbio-gff        = pyfinal.callPackage ./bcbio-gff.nix        { };
+      viroconstrictor  = pyfinal.callPackage ./viroconstrictor.nix  { };
+
+      # Pin snakemake to 9.5.0 (the version ViroConstrictor's June-2025
+      # snakemake-9 compat refactor was tested against). nixpkgs ships
+      # 9.16.3, which has refactored away `snakemake.logging.logger_manager`
+      # and `snakemake.resources.DefaultResources`; chasing each API drift
+      # is whack-a-mole. Pin once.
+      snakemake = pyprev.snakemake.overridePythonAttrs (old: rec {
+        version = "9.5.0";
+        src = pyfinal.fetchPypi {
+          inherit (old) pname;
+          inherit version;
+          hash = "sha256-VvomUQCHKQFyu2eA2sDPhgh1ohXScHiQt+irpnlRTQk=";
+        };
+        # 9.5.0 caps pulp <3.2 and snakemake-interface-logger-plugins <2.0;
+        # nixpkgs ships pulp 3.3 and the logger-plugins interface 2.0.1.
+        # Both bumps are minor in the surface ViroConstrictor exercises;
+        # relax rather than pin both transitive deps.
+        pythonRelaxDeps = (old.pythonRelaxDeps or [ ])
+          ++ [ "pulp" "snakemake-interface-logger-plugins" ];
+        # Two of snakemake 9.5.0's own resource-submission tests fail under
+        # the dep set we're running against (`'NoneType' object is not
+        # subscriptable` in test_resources_submitted_to_cluster). The
+        # workflow-execution path ViroConstrictor exercises doesn't go
+        # through that code; skip the upstream test suite rather than
+        # patch tests we don't depend on.
+        doCheck = false;
+        doInstallCheck = false;
+      });
     };
   });
   python3Packages = self.python3.pkgs;
   aminoextract = self.python3Packages.aminoextract;
+  biovalid    = self.python3Packages.biovalid;
+  viroconstrictor = self.python3Packages.viroconstrictor;
 
   ampligone    = self.callPackage ./ampligone.nix    { };
   trueconsense = self.callPackage ./trueconsense.nix { };
