@@ -5,8 +5,9 @@
 # A test that produces output of the expected shape exits 0; anything else
 # fails the build and surfaces in `nix flake check`.
 #
-# Test fixtures are fetched via `fetchurl` from the upstream ViroConstrictor
-# repo at a pinned commit, so they are content-addressed and reproducible.
+# Test fixtures are read straight from the in-repo `tests/e2e/data/` tree;
+# Nix imports them as content-addressed store paths, so they're reproducible
+# without the indirection of fetching the project's own data over HTTPS.
 # FASTQ inputs are synthesised at check time from the reference genome by
 # sliding a window across it (avoids hauling around megabytes of binary reads
 # and keeps the diff text-only).
@@ -19,27 +20,14 @@
 { pkgs }:
 
 let
-  # Pin to upstream RIVM/ViroConstrictor main at the time of writing.
-  # Bump together with any test fixture additions/changes.
-  upstreamRev = "199814b0c8606dc10a1b4303f79048e89a129d18";
-
-  fetchTestData = name: hash:
-    pkgs.fetchurl {
-      url = "https://raw.githubusercontent.com/RIVM-bioinformatics/ViroConstrictor/${upstreamRev}/tests/e2e/data/${name}";
-      sha256 = hash;
-    };
+  dataDir = ../tests/e2e/data;
 
   fixtures = {
-    referenceFasta = fetchTestData "reference_genome.fasta"
-      "0758xcb93s8hc89ms0pn8ds4495pgp0wg1c1yl0q52kbnzgci0aa";
-    referenceGff = fetchTestData "reference_genome.gff"
-      "0y1jqnys6a1mkd87psdk7n0lz4yqc85032jqd0x25l8nh6q0nnag";
-    primersBed = fetchTestData "Primers_articv4.1.bed"
-      "1gmfkfbbpnbl7gv8ap49f0wki3f7igjs3fq4xhvw9gklahk62rhi";
-    primersFasta = fetchTestData "Primers_articv4.1.fasta"
-      "1xajgx1mjc6rsfmkwps164n3yz1xlqhz4r737qiw52965knfx15g";
-    featuresGff = fetchTestData "ESIB_EQA_2024_SARS1_01_features.gff"
-      "1crsb435d1ir1y7l30sjvgx5l629afy7dvzb8lnxz3k6f62g3yvq";
+    referenceFasta = "${dataDir}/reference_genome.fasta";
+    referenceGff   = "${dataDir}/reference_genome.gff";
+    primersBed     = "${dataDir}/Primers_articv4.1.bed";
+    primersFasta   = "${dataDir}/Primers_articv4.1.fasta";
+    featuresGff    = "${dataDir}/ESIB_EQA_2024_SARS1_01_features.gff";
   };
 
   # Generate a small synthetic FASTQ from the reference: slide a 150 bp window
