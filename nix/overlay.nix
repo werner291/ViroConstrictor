@@ -2,7 +2,25 @@
 # default closures pull in much more than this project needs. See
 # nix/README.md and the per-file headers for rationale.
 self: super: {
-  aminoextract = self.callPackage ./aminoextract.nix { };
+  # aminoextract is now a buildPythonPackage (see nix/aminoextract.nix), so
+  # it lives inside the python package set: that's how `python.withPackages`
+  # finds it for the core-scripts / mr-scripts envs that need to `import
+  # AminoExtract`.
+  #
+  # Done via `python3.override { packageOverrides = ...; }` rather than
+  # `python3Packages.overrideScope`: the latter overrides the top-level
+  # `pkgs.python3Packages` attribute but does NOT rethread into
+  # `pkgs.python3.pkgs`, so `pkgs.python3.withPackages (ps: [ ps.aminoextract ])`
+  # would still see the unmodified scope. The override-on-the-interpreter
+  # pattern propagates through both attributes.
+  python3 = super.python3.override (old: {
+    packageOverrides = pyfinal: pyprev: (old.packageOverrides or (_: _: { })) pyfinal pyprev // {
+      aminoextract = pyfinal.callPackage ./aminoextract.nix { };
+    };
+  });
+  python3Packages = self.python3.pkgs;
+  aminoextract = self.python3Packages.aminoextract;
+
   ampligone    = self.callPackage ./ampligone.nix    { };
   trueconsense = self.callPackage ./trueconsense.nix { };
   fastqc-slim  = self.callPackage ./fastqc-slim.nix  { };

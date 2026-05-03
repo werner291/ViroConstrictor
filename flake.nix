@@ -5,6 +5,10 @@
 {
   description = "Experimental nix-built containers for ViroConstrictor (#161)";
 
+  # nixos-unstable = nixpkgs's rolling line, gated by Hydra CI. The
+  # "unstable" tag refers to the NixOS release channel, not package quality;
+  # we're using nixpkgs as a package source here, not building NixOS.
+  # Pinned via flake.lock; bump with `nix flake update`.
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }:

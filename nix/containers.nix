@@ -26,23 +26,27 @@ in
     (pythonWith (ps: with ps; [ pandas biopython ]))
   ] ++ base;
 
+  # AminoExtract goes inside `pythonWith` so it lands on the env's sys.path
+  # (the smoke tests for core-scripts and mr-scripts do `import AminoExtract`).
+  # The bin/aminoextract console script is still produced by the python env
+  # wrapper, so closures that only want the CLI (orf-analysis, consensus)
+  # still get it from PATH.
   orf-analysis = with pkgs; [
-    prodigal aminoextract
-    (pythonWith (ps: with ps; [ pandas biopython ]))
+    prodigal
+    (pythonWith (ps: with ps; [ pandas biopython aminoextract ]))
   ] ++ base;
 
   core-scripts = with pkgs; [
-    fastqc-slim aminoextract
-    (pythonWith (ps: with ps; [ pandas biopython pysam ]))
+    fastqc-slim
+    (pythonWith (ps: with ps; [ pandas biopython pysam aminoextract ]))
   ] ++ base;
 
   mr-scripts = with pkgs; [
-    aminoextract
-    (pythonWith (ps: with ps; [ pandas biopython pysam ]))
+    (pythonWith (ps: with ps; [ pandas biopython pysam aminoextract ]))
   ] ++ base;
 
   consensus = with pkgs; [
-    trueconsense aminoextract
-    (pythonWith (ps: with ps; [ pysam ]))
+    trueconsense
+    (pythonWith (ps: with ps; [ pysam aminoextract ]))
   ] ++ base;
 }

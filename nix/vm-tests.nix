@@ -148,12 +148,17 @@ let
       machine.wait_for_unit("docker.service")
 
       # Helper: wipe and re-stage /work between phases so a previous phase's
-      # outputs can't mask a regression in the next one.
+      # outputs can't mask a regression in the next one. /work is chowned to
+      # appuser (UID 10001) so the in-container user can write outputs to it
+      # via the bind mount; without this, fastp / samtools / etc. fail when
+      # they redirect stderr or write intermediate files to the bind-mounted
+      # working directory.
       def stage_work():
           machine.succeed("rm -rf /work && mkdir -p /work")
           machine.succeed("cp -r ${fixtureDir}/. /work/")
           machine.succeed("cp ${scriptFile name} /work/run.sh")
           machine.succeed("chmod +x /work/run.sh")
+          machine.succeed("chown -R 10001:10001 /work")
 
       stage_work()
 
