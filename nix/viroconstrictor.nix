@@ -76,6 +76,37 @@ buildPythonPackage {
       --replace-fail \
         'logger_manager.initialized = False' \
         'pass  # patched out'
+
+    # Apptainer inherits the host's PATH by default. On a Nix host, host
+    # PATH points at host-NixOS store paths, none of which are reachable
+    # inside the .sif (the .sif's own /bin has fastqc, fastp, etc.). The
+    # rule's `shell:` directives call those binaries by bare name (`fastqc
+    # --version`), so the lookup falls through to host PATH and fails.
+    #
+    # Inject a `shell.prefix` into the workflow that sets PATH=/bin at the
+    # start of every rule's shell invocation. snakemake's shell.prefix
+    # prepends to every shell directive globally, including those run
+    # inside apptainer/singularity, so this catches the rules without a
+    # per-rule patch.
+    for f in ViroConstrictor/workflow/main/workflow.smk \
+             ViroConstrictor/workflow/match_ref/workflow.smk; do
+      sed -i '/^min_version(/a\
+shell.prefix("export PATH=/bin:/usr/bin:$PATH; ")' "$f"
+    done
+
+    # Bind both the realpath() of the workflow dir and its un-resolved
+    # symlink form. nixpkgs' python.withPackages builds an env where
+    # site-packages/ViroConstrictor is a symlink into the package's own
+    # store path. realpath(__file__) resolves the symlink and returns
+    # the package path; snakemake's `workflow.basedir`, however, comes
+    # from the literal path that was passed in, which is the env path.
+    # Binding only the realpath leaves the env's workflow dir unbound
+    # inside the container, and the rules' PYTHONPATH points at the env
+    # form, so imports fail. Bind both.
+    substituteInPlace ViroConstrictor/workflow/helpers/containers.py \
+      --replace-fail \
+        'paths = [f"{Path(os.path.dirname(os.path.realpath(__file__))).parent}/"]' \
+        'paths = [f"{Path(os.path.dirname(os.path.realpath(__file__))).parent}/", f"{Path(os.path.dirname(__file__)).parent}/"]'
   '';
 
   # Upstream pyproject pins exact versions (`==1.85.*`, `==2.8.4`, etc.) that

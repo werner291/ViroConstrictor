@@ -105,6 +105,15 @@
         vm-alignment-real-reads = import ./nix/vm-test-real-reads.nix {
           inherit pkgs images containers;
         };
+
+        # Pipeline-level VM check: runs the actual ViroConstrictor CLI
+        # against all six Nix-built .sif files in a NixOS VM. Reaches the
+        # snakemake DAG and rule-to-rule handoff between containers; the
+        # per-container smoke tests in `checks.*` don't.
+        vm-pipeline-e2e = import ./nix/vm-test-pipeline-e2e.nix {
+          inherit pkgs images containers;
+          inherit (pkgs) viroconstrictor;
+        };
       } // pkgs.lib.foldl' (acc: v: acc // {
         # Per-CPU-baseline Clean image variants. Each pulls exactly one
         # `_polars_runtime_<v>` directory, mirroring the conda Clean image's

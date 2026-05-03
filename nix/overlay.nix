@@ -25,6 +25,20 @@ self: super: {
       # 9.16.3, which has refactored away `snakemake.logging.logger_manager`
       # and `snakemake.resources.DefaultResources`; chasing each API drift
       # is whack-a-mole. Pin once.
+      # snakemake-interface-logger-plugins: nixpkgs ships 2.0.1, but
+      # ViroConstrictor's in-repo `snakemake_logger_plugin_viroconstrictor`
+      # subclasses the 1.x `LogHandler` ABC (no `emit` abstract method).
+      # The 2.x ABC adds `emit`, so the plugin can't be instantiated against
+      # 2.x. Pin to the latest 1.x release.
+      snakemake-interface-logger-plugins = pyprev.snakemake-interface-logger-plugins.overridePythonAttrs (old: rec {
+        version = "1.2.4";
+        src = pyfinal.fetchPypi {
+          pname = "snakemake_interface_logger_plugins";
+          inherit version;
+          hash = "sha256-CRk7B8Jgs+/IinWg0zdnggcF9m6FwU1PDQ5WKxI8PFg=";
+        };
+      });
+
       snakemake = pyprev.snakemake.overridePythonAttrs (old: rec {
         version = "9.5.0";
         src = pyfinal.fetchPypi {
@@ -32,12 +46,8 @@ self: super: {
           inherit version;
           hash = "sha256-VvomUQCHKQFyu2eA2sDPhgh1ohXScHiQt+irpnlRTQk=";
         };
-        # 9.5.0 caps pulp <3.2 and snakemake-interface-logger-plugins <2.0;
-        # nixpkgs ships pulp 3.3 and the logger-plugins interface 2.0.1.
-        # Both bumps are minor in the surface ViroConstrictor exercises;
-        # relax rather than pin both transitive deps.
-        pythonRelaxDeps = (old.pythonRelaxDeps or [ ])
-          ++ [ "pulp" "snakemake-interface-logger-plugins" ];
+        # 9.5.0 caps pulp <3.2; nixpkgs ships pulp 3.3. Bump is minor.
+        pythonRelaxDeps = (old.pythonRelaxDeps or [ ]) ++ [ "pulp" ];
         # Two of snakemake 9.5.0's own resource-submission tests fail under
         # the dep set we're running against (`'NoneType' object is not
         # subscriptable` in test_resources_submitted_to_cluster). The
