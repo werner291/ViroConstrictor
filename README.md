@@ -1,5 +1,9 @@
 # ViroConstrictor
 
+> **Note — experimental fork.** This branch explores a Nix-based container build as input to upstream issue [#161](https://github.com/RIVM-bioinformatics/ViroConstrictor/issues/161) (containers too big). Nothing in the upstream pipeline is changed; the experiment lives in [`flake.nix`](./flake.nix) and [`nix/`](./nix/), with the rationale, sizes, tradeoffs and caveats written up in [`nix/README.md`](./nix/README.md). The rest of this README is unchanged from upstream.
+
+---
+
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/viroconstrictor/README.html)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7688035.svg)](https://doi.org/10.5281/zenodo.7688035)
 
