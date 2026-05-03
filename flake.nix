@@ -106,14 +106,6 @@
           inherit pkgs images containers;
         };
 
-        # Pipeline-level VM check: runs the actual ViroConstrictor CLI
-        # against all six Nix-built .sif files in a NixOS VM. Reaches the
-        # snakemake DAG and rule-to-rule handoff between containers; the
-        # per-container smoke tests in `checks.*` don't.
-        vm-pipeline-e2e = import ./nix/vm-test-pipeline-e2e.nix {
-          inherit pkgs images containers;
-          inherit (pkgs) viroconstrictor;
-        };
       } // pkgs.lib.foldl' (acc: v: acc // {
         # Per-CPU-baseline Clean image variants. Each pulls exactly one
         # `_polars_runtime_<v>` directory, mirroring the conda Clean image's
@@ -126,10 +118,13 @@
         inherit pkgs tests images cleanVariantClosures;
       };
 
-      # `nix flake check` smoke-tests every container end-to-end. Two layers:
+      # `nix flake check` smoke-tests every container end-to-end. Three
+      # layers:
       # 1. Closure-level checks (fast, hermetic, no docker/apptainer needed).
       # 2. VM checks: load the actual image into a NixOS VM and run the same
       #    script under both `docker run` and `singularity exec`.
+      # 3. Pipeline-level VM check: runs the real ViroConstrictor CLI
+      #    against all six .sif files end-to-end on real SARS-CoV-2 reads.
       # Plus per-CPU-baseline VM checks for the Clean image variants.
       #
       # The aarch64 cross-build VM check is exposed as a package
@@ -140,7 +135,13 @@
       # if you want to exercise it.
       checks = tests.forContainers containers
             // vmTests.forContainers containers
-            // vmTestsCleanVariants.forVariants cleanVariantNames;
+            // vmTestsCleanVariants.forVariants cleanVariantNames
+            // {
+              vm-pipeline-e2e = import ./nix/vm-test-pipeline-e2e.nix {
+                inherit pkgs images containers;
+                inherit (pkgs) viroconstrictor;
+              };
+            };
 
       # `nix run .#load-<name>` builds + loads a container into the local docker daemon
       apps = pkgs.lib.foldl' (acc: name: acc // {
