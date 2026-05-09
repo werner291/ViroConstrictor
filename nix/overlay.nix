@@ -20,6 +20,14 @@ self: super: {
       bcbio-gff        = pyfinal.callPackage ./bcbio-gff.nix        { };
       viroconstrictor  = pyfinal.callPackage ./viroconstrictor.nix  { };
 
+      # Snakemake's SLURM executor stack. Not in nixpkgs; needed only by
+      # the multi-node SLURM VM test (nix/vm-test-pipeline-slurm.nix).
+      # Local-execution paths don't import these.
+      snakemake-executor-plugin-slurm-jobstep =
+        pyfinal.callPackage ./snakemake-executor-plugin-slurm-jobstep.nix { };
+      snakemake-executor-plugin-slurm =
+        pyfinal.callPackage ./snakemake-executor-plugin-slurm.nix { };
+
       # Pin snakemake to 9.5.0 (the version ViroConstrictor's June-2025
       # snakemake-9 compat refactor was tested against). nixpkgs ships
       # 9.16.3, which has refactored away `snakemake.logging.logger_manager`

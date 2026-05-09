@@ -106,6 +106,18 @@
           inherit pkgs images containers;
         };
 
+        # Multi-node SLURM VM check: same pipeline as `vm-pipeline-e2e`,
+        # but distributed across a real SLURM cluster (controller + 2
+        # workers + submit host) booted in QEMU. Exercises the
+        # `_assign_resources_slurm` path that ViroConstrictor's
+        # `scheduler = SLURM` config selects. Prototype targeting the
+        # workflow_config.py:359 maintainer TODO; not yet under
+        # `checks` while the topology stabilises.
+        vm-pipeline-slurm = import ./nix/vm-test-pipeline-slurm.nix {
+          inherit pkgs images containers;
+          inherit (pkgs) viroconstrictor;
+        };
+
       } // pkgs.lib.foldl' (acc: v: acc // {
         # Per-CPU-baseline Clean image variants. Each pulls exactly one
         # `_polars_runtime_<v>` directory, mirroring the conda Clean image's
