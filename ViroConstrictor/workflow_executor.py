@@ -12,6 +12,26 @@ from ViroConstrictor.scheduler import Scheduler
 from ViroConstrictor.workflow_config import WorkflowConfig
 
 
+def _executor_settings_for(scheduler: Scheduler) -> Any:
+    """Plugin-specific ExecutorSettings instance, or None for in-process executors.
+
+    snakemake-executor-plugin-slurm 2.0.0 reads
+    `workflow.executor_settings.logdir` in its `__post_init__`; if no
+    settings instance was passed via `execute_workflow(executor_settings=...)`,
+    `workflow.executor_settings` is None and the plugin AttributeErrors
+    before the first sbatch call. Equivalent dataclasses live alongside
+    each remote-executor plugin (LSF, etc.); the local / dryrun
+    executors don't ship one and accept None.
+
+    Imported lazily so machines without the SLURM plugin installed
+    can still run local pipelines.
+    """
+    if scheduler is Scheduler.SLURM:
+        from snakemake_executor_plugin_slurm import ExecutorSettings as SlurmExecutorSettings
+        return SlurmExecutorSettings()
+    return None
+
+
 def _patch_debugger_for_snakemake() -> None:
     # gettrace returns something only if debugger is active
     if sys.gettrace() is None:
@@ -108,6 +128,7 @@ class WorkflowExecutor:
 
             self.dag_api.execute_workflow(
                 executor=scheduler.value[0],
+                executor_settings=_executor_settings_for(scheduler),
                 execution_settings=self.workflow_config.execution_settings,
                 remote_execution_settings=self.workflow_config.remote_execution_settings,
                 scheduling_settings=self.workflow_config.scheduling_settings,
