@@ -114,10 +114,15 @@ let
     ];
   };
 
-  # Configuration shared by every node that participates in actually
-  # running ViroConstrictor rules: the submit host (orchestrator) and the
-  # workers (rule executors). Everyone needs apptainer, the same vcPython
-  # closure, and access to the NFS-mounted /work.
+  # Configuration shared by every node that runs ViroConstrictor rules
+  # (submit as orchestrator, workers as executors). Same apptainer +
+  # vcPython closure on each. /work is reached differently per role:
+  # submit owns it as a local directory and re-exports via NFS, workers
+  # mount it from submit. This is the same shared-storage pattern any
+  # real SLURM cluster uses (NFS / Lustre / GPFS / BeeGFS); the
+  # nixosTest framework would let us cheat with virtio-9p (`/tmp/shared`
+  # is already passed through to every VM), but NFS is the production
+  # case and we want CI fidelity, not just a passing dispatch test.
   pipelineCommon = { pkgs, ... }: {
     programs.singularity = {
       enable = true;
@@ -134,14 +139,17 @@ let
       viroconstrictor
       vcPython
     ];
+  };
 
-    # Mount /work from submit. Submit re-mounts its own export over
-    # itself below; the nodes pick it up over NFS.
-    fileSystems."/work" = pkgs.lib.mkDefault {
-      device = "submit:/work";
-      fsType = "nfs";
-      options = [ "nfsvers=4" "rw" "soft" "_netdev" ];
-    };
+  # Worker-side: nfs client utilities + an empty /work directory. We
+  # mount NFSv3 manually from the test script (rather than via
+  # fileSystems / automount) so failures surface as clear `mount`
+  # error messages instead of a silent automount timeout.
+  workerWorkMount = {
+    boot.supportedFilesystems = [ "nfs" ];
+    services.rpcbind.enable = true;
+    systemd.tmpfiles.rules = [ "d /work 0777 root root -" ];
+    environment.systemPackages = [ pkgs.nfs-utils pkgs.iputils ];
   };
 in
 pkgs.testers.nixosTest {
@@ -157,7 +165,7 @@ pkgs.testers.nixosTest {
     };
 
     node1 = { ... }: {
-      imports = [ slurmConfig (pipelineCommon { inherit pkgs; }) ];
+      imports = [ slurmConfig (pipelineCommon { inherit pkgs; }) workerWorkMount ];
       services.slurm.client.enable = true;
       virtualisation = {
         diskSize = 8192;
@@ -167,7 +175,7 @@ pkgs.testers.nixosTest {
     };
 
     node2 = { ... }: {
-      imports = [ slurmConfig (pipelineCommon { inherit pkgs; }) ];
+      imports = [ slurmConfig (pipelineCommon { inherit pkgs; }) workerWorkMount ];
       services.slurm.client.enable = true;
       virtualisation = {
         diskSize = 8192;
@@ -176,7 +184,7 @@ pkgs.testers.nixosTest {
       };
     };
 
-    submit = { lib, ... }: {
+    submit = { ... }: {
       imports = [ slurmConfig (pipelineCommon { inherit pkgs; }) ];
       services.slurm.enableStools = true;
       virtualisation = {
@@ -184,23 +192,20 @@ pkgs.testers.nixosTest {
         memorySize = 6144;
         cores = 4;
       };
-      # Submit owns the shared filesystem. Re-mount its own export back
-      # onto /work so paths are byte-identical to what the workers see.
+      # /work is a real local directory on submit. Re-exported via NFSv3
+      # with no_root_squash so root-owned writes from the test driver
+      # land cleanly. insecure allows requests from non-privileged source
+      # ports, which the worker mount unit may use; cheaper than fighting
+      # `noresvport` plumbing.
+      systemd.tmpfiles.rules = [
+        "d /work 0777 root root -"
+      ];
       services.nfs.server = {
         enable = true;
         exports = ''
-          /work *(rw,no_root_squash,no_subtree_check,fsid=0)
+          /work *(rw,sync,no_root_squash,no_subtree_check,insecure)
         '';
       };
-      # Let the local /work shadow the NFS mount declared in pipelineCommon.
-      fileSystems."/work" = lib.mkForce {
-        device = "/work-local";
-        fsType = "none";
-        options = [ "bind" ];
-      };
-      systemd.tmpfiles.rules = [
-        "d /work-local 0777 root root -"
-      ];
     };
   };
 
@@ -221,14 +226,27 @@ pkgs.testers.nixosTest {
             "sinfo -Nh -o '%N %T' | grep -Fx 'node2 idle'"
         )
 
-    with subtest("nfs_mount_consistent"):
-        # Submit owns /work; nodes mount it over NFSv4. Smoke that a
-        # write on submit is readable on both workers before we stage
-        # gigabytes of .sif files into it.
+    with subtest("nfs_handshake"):
+        # NFS server up on submit, exports advertised to workers, then
+        # mount /work over NFSv3 from each worker and confirm a write
+        # on submit reads back through the mount.
+        submit.wait_for_unit("nfs-server.service")
+        submit.succeed("exportfs -v | grep -F /work")
         submit.succeed("echo hello-from-submit > /work/.handshake")
+
         for n in [node1, node2]:
-            n.wait_until_succeeds("test -f /work/.handshake")
+            # Pre-flight: hostname resolution + RPC reachability. If
+            # either fails, the mount will hang; surface it now.
+            n.succeed("getent hosts submit")
+            n.succeed("ping -c1 -W2 submit")
+            n.succeed("rpcinfo -p submit | grep -F nfs")
+            n.succeed(
+                "mount -t nfs -o nfsvers=3,rw,soft,timeo=50 "
+                "submit:/work /work"
+            )
             n.succeed("grep -Fx hello-from-submit /work/.handshake")
+            n.log("[mount] " + n.succeed("findmnt /work"))
+
         submit.succeed("rm /work/.handshake")
 
     with subtest("stage_pipeline_inputs"):
